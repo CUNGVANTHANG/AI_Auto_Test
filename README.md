@@ -1,4 +1,14 @@
-# llm-chatbot-rag
+# AI Auto Test
+
+Python 3.12.4
+
+```
+python -m venv myenv
+```
+
+```
+source myenv/bin/activate
+```
 
 ![Screenshot](/images/example.jpg)
 
