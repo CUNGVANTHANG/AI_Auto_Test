@@ -6,11 +6,9 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.vectorstores.utils import DistanceStrategy
 from transformers import AutoTokenizer
 
-
 CACHE_DIR = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models")
 )
-
 
 class Encoder:
     def __init__(
@@ -21,7 +19,6 @@ class Encoder:
             cache_folder=CACHE_DIR,
             model_kwargs={"device": device},
         )
-
 
 class FaissDb:
     def __init__(self, docs, embedding_function):

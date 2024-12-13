@@ -1,83 +1,129 @@
 import os
 import streamlit as st
-from model import ChatModelLLM
-import rag_util
-
+from model_llm import ChatModelLLM
+from model_gemini import ChatModelGemini
+import rag_llm
 
 FILES_DIR = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "files")
 )
 
-st.title("LLM Chatbot RAG Assistant")
-
 @st.cache_resource
-def load_model():
-    model = ChatModelLLM(model_id="google/gemma-2b-it", device="cpu")
+def load_model(answer_model_option):
+    model = None
+    if answer_model_option == "gemma-2b-it":
+        model = ChatModelLLM(model_id="google/gemma-2b-it", device="cpu")
+    else:
+        model = ChatModelGemini(model_id="gemini-1.5-pro", device="cpu")
     return model
 
-
 @st.cache_resource
-def load_encoder():
-    encoder = rag_util.Encoder(
-        model_name="sentence-transformers/all-MiniLM-L12-v2", device="cpu"
-    )
+def load_encoder(embedding_model_option):
+    encoder = None
+    if embedding_model_option == "all-MiniLM-L12-v2":
+        encoder = rag_llm.Encoder(
+            model_name="sentence-transformers/all-MiniLM-L12-v2", device="cpu"
+        )
+    else:    
+        encoder = None
     return encoder
 
-model = load_model()  # load our models once and then cache it
-encoder = load_encoder()
-
-
-def save_file(uploaded_file):
-    """helper function to save documents to disk"""
-    file_path = os.path.join(FILES_DIR, uploaded_file.name)
-    with open(file_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    return file_path
-
-
-with st.sidebar:
-    
-    max_new_tokens = st.number_input("max_new_tokens", 128, 4096, 512)
-    k = st.number_input("k", 1, 10, 3)
-    uploaded_files = st.file_uploader(
-        "Upload PDFs for context", type=["PDF", "pdf"], accept_multiple_files=True
-    )
+def process_files(uploaded_files, encoder):
     file_paths = []
+    DB = None
     if uploaded_files:
         with st.spinner("Processing the files..."):
             for uploaded_file in uploaded_files:
                 file_paths.append(save_file(uploaded_file))
             if uploaded_files != []:
-                docs = rag_util.load_and_split_pdfs(file_paths)
-                DB = rag_util.FaissDb(docs=docs, embedding_function=encoder.embedding_function)
-        st.success("Files processed successfully!")        
+                docs = rag_llm.load_and_split_pdfs(file_paths)
+                DB = rag_llm.FaissDb(docs=docs, embedding_function=encoder.embedding_function)
+        st.success("Files processed successfully!")
+    return DB    
 
+def save_file(uploaded_file):
+    file_path = os.path.join(FILES_DIR, uploaded_file.name)
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    return file_path
 
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display chat messages from history on app rerun
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# Accept user input
-if prompt := st.chat_input("Ask me anything!"):
-    # Add user message to chat history
+def handle_user_input(prompt, model, DB, k, max_new_tokens):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    # Display user message in chat message container
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        user_prompt = st.session_state.messages[-1]["content"]
-        context = (
-            None if uploaded_files == [] else DB.similarity_search(user_prompt, k=k)
-        )
-        answer = model.generate(
-            user_prompt, context=context, max_new_tokens=max_new_tokens
-        )
-        response = st.write(answer)
+        context = None if not DB else DB.similarity_search(prompt, k=k)
+        answer = model.generate(prompt, context=context, max_new_tokens=max_new_tokens)
+        st.markdown(answer)
+
     st.session_state.messages.append({"role": "assistant", "content": answer})
+
+def setup_page():
+    st.set_page_config(
+        page_title="AI Auto Test",  
+        page_icon="💬",  
+        layout="centered"
+    )
+
+def display_title():
+    st.title("💬 AI Auto Test")
+    st.caption("🚀 AI Automatic Test Case Generation")
+
+def display_sidebar():
+    with st.sidebar:
+        st.header("Model Configuration")
+
+        # Radio button to choose embedding model
+        embedding_model_option = st.radio(
+            "🔤 Choose an Embedding Model",
+            options=["all-MiniLM-L12-v2", "gemini-1.5-pro"],
+            index=0, # Default to first model
+        )
+
+        encoder = load_encoder(embedding_model_option)
+
+        # Radio button to choose answer generation model
+        answer_model_option = st.radio(
+            "🤖 Choose an Answer Generation Model",
+            options=["gemma-2b-it", "gemini-1.5-pro"],
+            index=1, # Default to first model
+        )
+
+        model = load_model(answer_model_option)  
+
+        max_new_tokens = st.number_input("max_new_tokens", 128, 4096, 512)
+        k = st.number_input("k", 1, 10, 3)
+        uploaded_files = st.file_uploader(
+            "Upload PDFs or Word documents for context", type=["pdf", "doc", "docx"], accept_multiple_files=True
+        )
+
+        DB = process_files(uploaded_files, encoder)
+
+
+        return model, max_new_tokens, k, DB     
+
+def initialize_chat_history():
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+def display_chat_messages():
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+def main():
+    setup_page()
+    display_title()
+
+    model, max_new_tokens, k, DB = display_sidebar()
+
+    initialize_chat_history()
+
+    display_chat_messages()
+
+    if prompt := st.chat_input("Ask me anything!"):
+        handle_user_input(prompt, model, DB, k, max_new_tokens)
+
+if __name__ == "__main__":
+    main()

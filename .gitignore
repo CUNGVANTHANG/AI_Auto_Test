@@ -2,3 +2,4 @@
 files/*
 models/*
 myenv/*
+src/__pycache__
