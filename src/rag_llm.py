@@ -32,11 +32,28 @@ class FaissDb:
         return context
 
 
+def clean_text(text: str) -> str:
+    """
+    Làm sạch văn bản: Loại bỏ các ký tự xuống dòng (\n) và khoảng trắng thừa.
+    """
+    return " ".join(text.split())
+
 def load_and_split_pdfs(file_paths: list, chunk_size: int = 256):
     loaders = [PyPDFLoader(file_path) for file_path in file_paths]
     pages = []
+
     for loader in loaders:
-        pages.extend(loader.load())
+        try:
+            loaded_pages = loader.load()
+            for page in loaded_pages:
+                # Làm sạch văn bản trước khi thêm vào danh sách
+                page.page_content = clean_text(page.page_content)
+            pages.extend(loaded_pages)
+            print(f"Loaded {len(loaded_pages)} pages from {loader.file_path}")
+        except Exception as e:
+            print(f"Error loading PDF {loader.file_path}: {e}")
+    # for loader in loaders:
+    #     pages.extend(loader.load())
 
     text_splitter = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
         tokenizer=AutoTokenizer.from_pretrained(

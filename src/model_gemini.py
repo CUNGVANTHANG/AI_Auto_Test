@@ -35,8 +35,8 @@ class ChatModelGemini:
             {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
         ]
 
-    def query_gemini_api(self, system_instruction: str, max_new_tokens: int = 250):
-        self.generation_config["max_output_tokens"] = max_new_tokens
+    def query_gemini_api(self, system_instruction: str, max_new_tokens: int = 8192):
+        # self.generation_config["max_output_tokens"] = max_new_tokens
 
         model = genai.GenerativeModel(
             model_name=self.model_id,
@@ -48,16 +48,19 @@ class ChatModelGemini:
 
     def generate(self, question: str, context: str = None, max_new_tokens: int = 250):
         # Prepare the prompt
+        print(">>", context)
         if not context:
             prompt = f"Question: {question}"
         else:
             prompt = f"Context: {context}\nQuestion: {question}"
 
         system_instruction = (
-            "You are an expert in artificial intelligence. Your task is to assist users "
-            "with AI-related queries and explain concepts clearly and concisely. Use examples "
-            "wherever possible to make the explanations easy to understand."
-        )    
+            "You are an expert in software testing and test case generation. Your task is to assist users "
+            "in creating, analyzing, and optimizing test cases for software systems. Provide clear and "
+            "concise explanations with practical examples to ensure users understand the purpose, steps, "
+            "and expected outcomes of each test case. Focus on ensuring test coverage, reliability, and "
+            "adherence to software testing standards."
+        )
 
         # Start a chat session
         chat_session = self.query_gemini_api(system_instruction=system_instruction, max_new_tokens=max_new_tokens)

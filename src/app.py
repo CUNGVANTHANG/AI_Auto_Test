@@ -1,7 +1,11 @@
 import os
+import pandas as pd
 import streamlit as st
+import json
+import io
 from model_llm import ChatModelLLM
 from model_gemini import ChatModelGemini
+from context import DEFAULT_CONTEXT
 import rag_llm
 
 FILES_DIR = os.path.normpath(
@@ -37,6 +41,7 @@ def process_files(uploaded_files, encoder):
                 file_paths.append(save_file(uploaded_file))
             if uploaded_files != []:
                 docs = rag_llm.load_and_split_pdfs(file_paths)
+                print(docs)
                 DB = rag_llm.FaissDb(docs=docs, embedding_function=encoder.embedding_function)
         st.success("Files processed successfully!")
     return DB    
@@ -48,19 +53,33 @@ def save_file(uploaded_file):
     return file_path
 
 def handle_user_input(prompt, model, DB, k, max_new_tokens):
+    if not prompt.strip(): 
+        combined_prompt = DEFAULT_CONTEXT
+    else:  
+        combined_prompt = f"{prompt}\n\n{DEFAULT_CONTEXT}"
+    
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(prompt if prompt.strip() else "Using default context.")
 
+    df = None
     with st.chat_message("assistant"):
-        context = None if not DB else DB.similarity_search(prompt, k=k)
-        answer = model.generate(prompt, context=context, max_new_tokens=max_new_tokens)
-        st.markdown(answer)
+        context = None if not DB else DB.similarity_search(combined_prompt, k=k)
+        answer = model.generate(combined_prompt, context=context, max_new_tokens=max_new_tokens)
+        print(answer)
+        try:
+            cleaned_json = answer.strip().replace("```json", "").replace("```", "").strip()
+            data = json.loads(cleaned_json)
+            df = pd.DataFrame(data)
+            st.dataframe(df)
+        except Exception as e:
+            st.error(f"Error processing JSON data: {e}")
+        # st.markdown(answer)
 
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.session_state.messages.append({"role": "assistant", "content": df})
 
 def setup_page():
-    st.set_page_config(
+    st.set_page_config( 
         page_title="AI Auto Test",  
         page_icon="💬",  
         layout="centered"
@@ -110,7 +129,10 @@ def initialize_chat_history():
 def display_chat_messages():
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            if message["role"] == "assistant":
+                st.dataframe(message["content"])
+            else:
+                st.markdown(message["content"])
 
 def main():
     setup_page()
