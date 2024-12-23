@@ -20,7 +20,7 @@ DEFAULT_CONTEXT = """
 **PROCEDURE**:
    Actions performed in the test, often in command form (e.g., "Select," "Press").
    Examples: "Tune to a valid FM station.", "Set main tuner to FM."
- 
+
 **EXPECTED_RESULT**:
    Outcome expected post-procedure.
    Look for keywords like "should," "must," "will."
@@ -31,5 +31,4 @@ DEFAULT_CONTEXT = """
 **Format**: Output as JSON list with fields:
    REQUIREMENT_ID, TEST_OBJECTIVE, PRECONDITION, PROCEDURE, EXPECTED_RESULT, MISCELLANEOUS.
    Do not give anything beside the JSON list.
-
 """

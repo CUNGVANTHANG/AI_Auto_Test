@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import streamlit as st
 import json
-import io
 from model_llm import ChatModelLLM
 from model_gemini import ChatModelGemini
 from context import DEFAULT_CONTEXT
@@ -39,12 +38,17 @@ def process_files(uploaded_files, encoder):
         with st.spinner("Processing the files..."):
             for uploaded_file in uploaded_files:
                 file_paths.append(save_file(uploaded_file))
-            if uploaded_files != []:
-                docs = rag_llm.load_and_split_pdfs(file_paths)
-                print(docs)
-                DB = rag_llm.FaissDb(docs=docs, embedding_function=encoder.embedding_function)
+            if file_paths:  # Chỉ tiếp tục nếu có file hợp lệ
+                docs = rag_llm.load_and_split_files(file_paths)
+                if docs:  # Kiểm tra danh sách tài liệu
+                    print(docs)
+                    DB = rag_llm.FaissDb(docs=docs, embedding_function=encoder.embedding_function)
+                else:
+                    st.error("No documents were processed. Please check your files.")
+            else:
+                st.error("No files were uploaded.")
         st.success("Files processed successfully!")
-    return DB    
+    return DB 
 
 def save_file(uploaded_file):
     file_path = os.path.join(FILES_DIR, uploaded_file.name)
@@ -91,36 +95,50 @@ def display_title():
 
 def display_sidebar():
     with st.sidebar:
-        st.header("Model Configuration")
+        st.header("Settings")
 
-        # Radio button to choose embedding model
-        embedding_model_option = st.radio(
-            "🔤 Choose an Embedding Model",
-            options=["all-MiniLM-L12-v2", "gemini-1.5-pro"],
-            index=0, # Default to first model
+         # Add option to select input mode
+        input_mode = st.radio(
+            "Input Mode",
+            options=["Chat Input", "Button Prompt"],
+            index=1,
+            help="Choose how to provide input to the assistant."
         )
+
+        # # Radio button to choose embedding model
+        # embedding_model_option = st.radio(
+        #     "🔤 Choose an Embedding Model",
+        #     options=["all-MiniLM-L12-v2", "gemini-1.5-pro"],
+        #     index=0, # Default to first model
+        # )
+
+        embedding_model_option = "all-MiniLM-L12-v2"
 
         encoder = load_encoder(embedding_model_option)
 
-        # Radio button to choose answer generation model
-        answer_model_option = st.radio(
-            "🤖 Choose an Answer Generation Model",
-            options=["gemma-2b-it", "gemini-1.5-pro"],
-            index=1, # Default to first model
-        )
+        # # Radio button to choose answer generation model
+        # answer_model_option = st.radio(
+        #     "🤖 Choose an Answer Generation Model",
+        #     options=["gemma-2b-it", "gemini-1.5-pro"],
+        #     index=1, # Default to first model
+        # )
 
-        model = load_model(answer_model_option)  
+        answer_model_option = "gemini-1.5-pro"
 
-        max_new_tokens = st.number_input("max_new_tokens", 128, 4096, 512)
-        k = st.number_input("k", 1, 10, 3)
+        model = load_model(answer_model_option)
+
+        # max_new_tokens = st.number_input("max_new_tokens", 128, 4096, 512)
+        max_new_tokens = 512
+        # k = st.number_input("k", 1, 10, 3)
+        k = 3
+
         uploaded_files = st.file_uploader(
             "Upload PDFs or Word documents for context", type=["pdf", "doc", "docx"], accept_multiple_files=True
         )
 
         DB = process_files(uploaded_files, encoder)
 
-
-        return model, max_new_tokens, k, DB     
+        return model, max_new_tokens, k, DB, input_mode
 
 def initialize_chat_history():
     if "messages" not in st.session_state:
@@ -138,14 +156,18 @@ def main():
     setup_page()
     display_title()
 
-    model, max_new_tokens, k, DB = display_sidebar()
+    model, max_new_tokens, k, DB, input_mode = display_sidebar()
 
     initialize_chat_history()
 
     display_chat_messages()
 
-    if prompt := st.chat_input("Ask me anything!"):
-        handle_user_input(prompt, model, DB, k, max_new_tokens)
+    if input_mode == "Chat Input":
+        if prompt := st.chat_input("Ask me anything!"):
+            handle_user_input(prompt, model, DB, k, max_new_tokens)
+    else:
+        if st.button("Generate Test Case Requirements"):
+            handle_user_input("write test case requirement", model, DB, k, max_new_tokens)
 
 if __name__ == "__main__":
     main()
