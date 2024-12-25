@@ -162,11 +162,13 @@ def main():
 
     display_chat_messages()
 
+    is_db_ready = DB is not None
+
     if input_mode == "Chat Input":
-        if prompt := st.chat_input("Ask me anything!"):
+        if prompt := st.chat_input("Ask me anything about test case creation!", disabled=not is_db_ready):
             handle_user_input(prompt, model, DB, k, max_new_tokens)
     else:
-        if st.button("Generate Test Case Requirements"):
+        if st.button("Generate Test Case Requirements", disabled=not is_db_ready):
             handle_user_input("write test case requirement", model, DB, k, max_new_tokens)
 
 if __name__ == "__main__":
